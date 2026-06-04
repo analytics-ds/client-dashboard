@@ -29,8 +29,9 @@ for (const [account, secretName] of Object.entries(ACCOUNTS)) {
 
 console.log(`Pull GSC pour ${CLIENTS.length} clients x 3 fenetres (7/28/90, S vs S-1 et vs N-1)...`);
 
-const clientsData = await Promise.all(CLIENTS.map(async (client) => {
-  const errWindows = (msg) => ({ '7': { error: msg }, '28': { error: msg }, '90': { error: msg }, daily: { error: msg } });
+const errWindows = (msg) => ({ '7': { error: msg }, '28': { error: msg }, '90': { error: msg }, daily: { error: msg } });
+
+async function pullClient(client) {
   const auth = authByAccount[client.account];
   if (!auth) {
     return { client, data: { windows: errWindows(`Compte Google "${client.account}" non configuré (refresh token manquant)`) } };
@@ -45,7 +46,24 @@ const clientsData = await Promise.all(CLIENTS.map(async (client) => {
   console.log(`  ${(client.label || client.domain).padEnd(24)} ${status}`);
 
   return { client, data: { windows: gsc } };
+}
+
+// Un client lance deja ~34 requetes en parallele. Plusieurs clients sur le MEME
+// compte Google saturent le quota de debit GSC ("load quota exceeded").
+// => on regroupe par compte et on traite 1 client a la fois par compte,
+//    les differents comptes tournant en parallele.
+const byAccount = new Map();
+for (const client of CLIENTS) {
+  if (!byAccount.has(client.account)) byAccount.set(client.account, []);
+  byAccount.get(client.account).push(client);
+}
+const results = new Map();
+await Promise.all([...byAccount.values()].map(async (clients) => {
+  for (const client of clients) {
+    results.set(client, await pullClient(client));
+  }
 }));
+const clientsData = CLIENTS.map(client => results.get(client));
 
 const periods = {
   '7': rangesForWindow(7),

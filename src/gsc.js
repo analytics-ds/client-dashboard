@@ -28,16 +28,21 @@ export function buildAuth({ clientId, clientSecret, refreshToken }) {
   return oauth2;
 }
 
-// Erreurs reseau transitoires (runner GitHub qui n'atteint pas googleapis.com)
-// vs vraies erreurs API (permissions, quota) qu'il ne sert a rien de retenter
+// Erreurs transitoires qu'on retente :
+// - reseau (runner GitHub qui n'atteint pas googleapis.com)
+// - 5xx cote Google
+// - 429 / "load quota exceeded" : bridage de debit court terme (rafale de requetes),
+//   se resorbe en quelques secondes => retry avec backoff plus long.
 function isTransientError(err) {
-  if (err.response?.status >= 500) return true;
-  const msg = err.message ?? '';
+  const status = err.response?.status ?? err.code;
+  if (status >= 500 || status === 429) return true;
+  const msg = (err.response?.data?.error?.message ?? err.message ?? '');
+  if (/quota exceeded|rate limit|user rate/i.test(msg)) return true;
   return /failed, reason|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i.test(msg);
 }
 
 async function querySite(searchconsole, siteUrl, { startDate, endDate, dimensions = [], rowLimit = 1 }) {
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 6;
   for (let attempt = 1; ; attempt++) {
     try {
       const res = await searchconsole.searchanalytics.query({
@@ -47,7 +52,9 @@ async function querySite(searchconsole, siteUrl, { startDate, endDate, dimension
       return res.data.rows ?? [];
     } catch (err) {
       if (isTransientError(err) && attempt < MAX_ATTEMPTS) {
-        await new Promise(r => setTimeout(r, 3000 * attempt));
+        // backoff exponentiel + jitter : ~2s, 4s, 8s, 16s, 32s
+        const delay = 1000 * 2 ** attempt + Math.floor(Math.random() * 1000);
+        await new Promise(r => setTimeout(r, delay));
         continue;
       }
       const msg = err.response?.data?.error?.message ?? err.message;
