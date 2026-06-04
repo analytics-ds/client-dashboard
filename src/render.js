@@ -162,6 +162,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
     .site-kpi { display: flex; flex-direction: column; gap: 2px; }
     .site-kpi .label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
     .site-kpi .num { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .site-kpi .kpi-deltas { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }
     .site-error { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--red); padding: 18px; cursor: not-allowed; }
     .site-error .err-tag { font-size: 11px; font-weight: 600; background: var(--red-bg); color: var(--red); padding: 3px 10px; border-radius: var(--radius-pill); }
     .site-error .err-msg { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.45; }
@@ -739,7 +740,9 @@ export function renderDashboard({ encrypted, generatedAt }) {
       const dPrev = deltaPct(w.current.clicks, w.previous.clicks);
       const dYear = deltaPct(w.current.clicks, w.yearAgo.clicks);
       const dImp = deltaPct(w.current.impressions, w.previous.impressions);
+      const dImpYear = deltaPct(w.current.impressions, w.yearAgo.impressions);
       const dPos = deltaPos(w.current.position, w.previous.position);
+      const dPosYear = deltaPos(w.current.position, w.yearAgo.position);
       const alert = w.current.clicks < (w.previous.clicks || 0);
       return '<div class="site-card ' + (alert ? 'alert' : '') + '" data-domain="' + s.domain + '">' +
         '<div class="head">' +
@@ -751,8 +754,8 @@ export function renderDashboard({ encrypted, generatedAt }) {
         '<div class="site-deltas">' + labeledBadge('S-1', dPrev) + labeledBadge('N-1', dYear) + '</div>' +
         '<div class="site-sparkline"><canvas id="spark-' + slug(s.domain) + '"></canvas></div>' +
         '<div class="site-subkpis">' +
-          '<div class="site-kpi"><div class="label">Impressions</div><div class="num">' + fmtNum(w.current.impressions) + '</div><div>' + badge(dImp) + '</div></div>' +
-          '<div class="site-kpi"><div class="label">Position</div><div class="num">' + fmtPos(w.current.position) + '</div><div>' + badge(dPos) + '</div></div>' +
+          '<div class="site-kpi"><div class="label">Impressions</div><div class="num">' + fmtNum(w.current.impressions) + '</div><div class="kpi-deltas">' + labeledBadge('S-1', dImp) + labeledBadge('N-1', dImpYear) + '</div></div>' +
+          '<div class="site-kpi"><div class="label">Position</div><div class="num">' + fmtPos(w.current.position) + '</div><div class="kpi-deltas">' + labeledBadge('S-1', dPos) + labeledBadge('N-1', dPosYear) + '</div></div>' +
         '</div>' +
       '</div>';
     }
