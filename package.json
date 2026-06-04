@@ -1,0 +1,17 @@
+{
+  "name": "client-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dashboard clients SEO: Search Console, evolution S vs S-1 et vs N-1, exclusion marque, acces protege par mot de passe",
+  "scripts": {
+    "build": "node src/build.js",
+    "get-refresh-token": "node scripts/get-refresh-token.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}
