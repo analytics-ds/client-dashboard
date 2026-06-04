@@ -34,6 +34,14 @@ jobs:
 
       - run: npm ci
 
+      - name: DEBUG secrets fingerprint
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          printf 'CID  len=%s fp=%s\n' "${#GOOGLE_CLIENT_ID}" "$(printf '%s' "$GOOGLE_CLIENT_ID" | sha256sum | cut -c1-12)"
+          printf 'CSEC len=%s fp=%s\n' "${#GOOGLE_CLIENT_SECRET}" "$(printf '%s' "$GOOGLE_CLIENT_SECRET" | sha256sum | cut -c1-12)"
+
       - name: Build dashboard
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
