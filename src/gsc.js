@@ -41,13 +41,13 @@ function isTransientError(err) {
   return /failed, reason|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i.test(msg);
 }
 
-async function querySite(searchconsole, siteUrl, { startDate, endDate, dimensions = [], rowLimit = 1 }) {
+async function querySite(searchconsole, siteUrl, { startDate, endDate, dimensions = [], rowLimit = 1, dimensionFilterGroups }) {
   const MAX_ATTEMPTS = 6;
   for (let attempt = 1; ; attempt++) {
     try {
       const res = await searchconsole.searchanalytics.query({
         siteUrl,
-        requestBody: { startDate, endDate, dimensions, rowLimit, dataState: 'final' },
+        requestBody: { startDate, endDate, dimensions, rowLimit, dataState: 'final', ...(dimensionFilterGroups ? { dimensionFilterGroups } : {}) },
       });
       return res.data.rows ?? [];
     } catch (err) {
@@ -227,6 +227,60 @@ async function fetchDailySeries(searchconsole, gscProperty, days = 90) {
     position: r.position ?? 0,
     ctr: r.ctr ?? 0,
   })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ---- Suivi mensuel des mots clés ----
+// GSC garde 16 mois d'historique : on peut reconstruire 13 mois de positions
+// à chaque build, sans stocker d'état entre les runs.
+
+// Les 13 derniers mois calendaires (du plus ancien au plus récent), bornés à J-2.
+export function monthRanges(count = 13) {
+  const maxEnd = dayMinus(GSC_DELAY_DAYS);
+  const now = new Date();
+  const months = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0));
+    const startDate = first.toISOString().slice(0, 10);
+    const fullEnd = last.toISOString().slice(0, 10);
+    const endDate = fullEnd > maxEnd ? maxEnd : fullEnd;
+    if (endDate < startDate) continue;
+    months.push({ key: startDate.slice(0, 7), startDate, endDate, partial: endDate !== fullEnd });
+  }
+  return months;
+}
+
+const escapeRe2 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Position/clics/impressions mois par mois pour une liste de mots clés suivis.
+ * Une requête GSC par mois, filtrée par regex exacte sur les mots clés.
+ * null pour un mois = aucune impression (ou requête anonymisée par GSC).
+ */
+export async function fetchMonthlyKeywords(auth, gscProperty, keywords) {
+  if (!keywords || !keywords.length) return null;
+  const searchconsole = google.searchconsole({ version: 'v1', auth });
+  const months = monthRanges(13);
+  const expression = '^(' + keywords.map(escapeRe2).join('|') + ')$';
+  const results = await Promise.all(months.map(m => querySite(searchconsole, gscProperty, {
+    startDate: m.startDate,
+    endDate: m.endDate,
+    dimensions: ['query'],
+    rowLimit: Math.min(Math.max(keywords.length * 2, 50), 1000),
+    dimensionFilterGroups: [{ filters: [{ dimension: 'query', operator: 'includingRegex', expression }] }],
+  })));
+  if (results.every(r => r.error)) return { error: results[0].error };
+  const rows = keywords.map(kw => ({
+    keyword: kw,
+    data: months.map((m, i) => {
+      const res = results[i];
+      if (res.error) return null;
+      const row = res.find(r => (r.keys?.[0] ?? '') === kw);
+      if (!row) return null;
+      return { clicks: row.clicks ?? 0, impressions: row.impressions ?? 0, position: row.position ?? 0 };
+    }),
+  }));
+  return { months: months.map(m => ({ key: m.key, partial: m.partial })), rows };
 }
 
 /**

@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import crypto from 'node:crypto';
 import { CLIENTS, ACCOUNTS } from './clients.js';
-import { buildAuth, fetchSiteWindows, rangesForWindow } from './gsc.js';
+import { KEYWORDS } from './keywords.js';
+import { buildAuth, fetchSiteWindows, fetchMonthlyKeywords, rangesForWindow } from './gsc.js';
 import { renderDashboard } from './render.js';
 
 const required = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'DASHBOARD_PASSWORD'];
@@ -39,13 +40,18 @@ async function pullClient(client) {
   const gsc = await fetchSiteWindows(auth, client.gscProperty)
     .catch(err => errWindows(err.message));
 
+  // Suivi mensuel des mots clés (après les fenêtres, pour lisser le débit GSC)
+  const monthly = await fetchMonthlyKeywords(auth, client.gscProperty, KEYWORDS[client.domain])
+    .catch(err => ({ error: err.message }));
+
   const w7 = gsc['7'];
+  const kwCount = monthly?.rows?.length ?? 0;
   const status = w7?.error
     ? `ERR ${w7.error.slice(0, 80)}`
-    : `${w7?.current?.clicks ?? 0} clics 7j (S-1 ${w7?.previous?.clicks ?? 0} | N-1 ${w7?.yearAgo?.clicks ?? 0})`;
+    : `${w7?.current?.clicks ?? 0} clics 7j (S-1 ${w7?.previous?.clicks ?? 0} | N-1 ${w7?.yearAgo?.clicks ?? 0}) | ${kwCount} KW suivis`;
   console.log(`  ${(client.label || client.domain).padEnd(24)} ${status}`);
 
-  return { client, data: { windows: gsc } };
+  return { client, data: { windows: gsc, monthly } };
 }
 
 // Un client lance deja ~34 requetes en parallele. Plusieurs clients sur le MEME

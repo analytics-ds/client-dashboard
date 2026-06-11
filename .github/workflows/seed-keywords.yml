@@ -1,0 +1,39 @@
+name: Seed keywords
+
+# Remplit les listes vides de src/keywords.js avec les top requetes hors marque
+# (90 derniers jours) et commit le resultat. Les listes deja remplies sont conservees.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Seed keywords depuis GSC
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN_PIERRE: ${{ secrets.GOOGLE_REFRESH_TOKEN_PIERRE }}
+          GOOGLE_REFRESH_TOKEN_DATASHAKE: ${{ secrets.GOOGLE_REFRESH_TOKEN_DATASHAKE }}
+          GOOGLE_REFRESH_TOKEN_UPEARLY: ${{ secrets.GOOGLE_REFRESH_TOKEN_UPEARLY }}
+        run: node scripts/seed-keywords.mjs
+
+      - name: Commit keywords.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/keywords.js
+          git diff --cached --quiet && echo "Rien a committer" || git commit -m "seed: mots cles suivis depuis GSC (top hors marque 90j)"
+          git push

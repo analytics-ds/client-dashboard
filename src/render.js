@@ -242,6 +242,30 @@ export function renderDashboard({ encrypted, generatedAt }) {
     .compare-table .site-cell { display: flex; align-items: center; gap: 8px; min-width: 200px; }
     .compare-table .site-cell img { width: 18px; height: 18px; border-radius: 4px; }
 
+    /* Suivi mots clés */
+    .kw-client { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; }
+    .kw-client > .head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .kw-client > .head img { width: 20px; height: 20px; border-radius: 5px; }
+    .kw-client > .head .name { font-weight: 600; font-size: 14px; flex: 1; }
+    .kw-client > .head .meta { font-size: 11px; color: var(--text-muted); }
+    .kw-scroll { overflow-x: auto; }
+    .kw-table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .kw-table th { background: var(--bg); padding: 8px 10px; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap; }
+    .kw-table th.kw-kw, .kw-table td.kw-kw { text-align: left; position: sticky; left: 0; background: var(--bg-card); min-width: 180px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 1px 0 0 var(--border); }
+    .kw-table th.kw-kw { background: var(--bg); }
+    .kw-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: center; }
+    .kw-table tr:last-child td { border-bottom: 0; }
+    .kw-table tr:hover td { background: var(--bg-warm); }
+    .kw-table tr:hover td.kw-kw { background: var(--bg-warm); }
+    .kw-table td.kw-kw { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+    .kw-pos { font-weight: 600; }
+    .kw-pos.top3 { color: var(--green); background: var(--green-bg); }
+    .kw-pos.top10 { color: var(--accent-dark); background: rgba(194,182,66,0.14); }
+    .kw-pos.p20 { color: var(--text-secondary); }
+    .kw-pos.far { color: var(--text-muted); }
+    .kw-pos.none { color: var(--text-muted); font-weight: 400; }
+    .kw-empty { padding: 18px; font-size: 12px; color: var(--text-muted); }
+
     @media (max-width: 900px) {
       .app { grid-template-columns: 1fr; }
       .sidebar { position: relative; height: auto; max-height: 50vh; }
@@ -639,6 +663,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
       const items = [];
       items.push(navItem('overview', '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>', "Vue d'ensemble"));
       items.push(navItem('compare', '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M8 17V9M13 17V5M18 17v-6"/></svg>', 'Comparaison'));
+      items.push(navItem('keywords', '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><path d="M7 7h0"/></svg>', 'Mots clés suivis'));
       items.push('<div class="sidebar-section" style="padding-top:14px">Clients</div>');
       CLIENTS.forEach((s) => {
         const w = getClientWindow(s, currentPeriod);
@@ -876,6 +901,74 @@ export function renderDashboard({ encrypted, generatedAt }) {
         ok.forEach(r => rows2.push([r.label, r.clicks, r.prevClicks, r.yearClicks, r.impressions, r.prevImpressions, r.position?.toFixed(2), r.prevPosition?.toFixed(2), r.ctr.toFixed(2)]));
         downloadCSV('clients-comparaison-' + currentPeriod + 'j.csv', rows2);
       });
+    }
+
+    // ===== Suivi mots clés (mensuel) =====
+    function monthLabel(key) {
+      const [y, m] = key.split('-');
+      const lbl = new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('fr-FR', { month: 'short' });
+      return lbl.replace('.', '') + ' ' + y.slice(2);
+    }
+    function kwCell(d) {
+      if (!d || !d.impressions) return '<td class="kw-pos none">–</td>';
+      const p = d.position;
+      const cls = p <= 3 ? 'top3' : p <= 10 ? 'top10' : p <= 20 ? 'p20' : 'far';
+      return '<td class="kw-pos ' + cls + '" title="' + fmtNum(d.clicks) + ' clics · ' + fmtNum(d.impressions) + ' impressions">' + p.toFixed(1) + '</td>';
+    }
+    function renderKeywords() {
+      $('#page-title').textContent = 'Mots clés suivis';
+      $('#page-sub').textContent = 'Position moyenne mensuelle (GSC) · 13 derniers mois';
+
+      const withData = CLIENTS.filter(c => c.data.monthly && !c.data.monthly.error && c.data.monthly.rows?.length);
+      if (!withData.length) {
+        $('#content').innerHTML = '<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h0"/></svg>' +
+          'Aucun mot clé suivi pour le moment. Lancer le workflow GitHub <b>Seed keywords</b> (Actions &gt; Seed keywords &gt; Run workflow) pour générer les listes initiales, ou éditer <code>src/keywords.js</code>.</div>';
+        return;
+      }
+
+      const exportBtn = '<button class="btn" id="export-kw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export CSV</button>';
+      const note = '<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h0"/></svg>' +
+        'Données mensuelles tous pays / devices confondus : les filtres du haut ne s\\'appliquent pas ici. « – » = aucune impression ce mois-là. « * » = mois en cours, partiel. Listes éditables dans <code>src/keywords.js</code>.</div>';
+
+      const blocks = CLIENTS.map(c => {
+        const m = c.data.monthly;
+        const head = '<div class="head"><img src="' + favicon(c.domain) + '" alt=""><span class="name">' + escapeAttr(c.label) + '</span>';
+        if (!m) return '<div class="kw-client">' + head + '</div><div class="kw-empty">Aucun mot clé configuré pour ce client (src/keywords.js).</div></div>';
+        if (m.error) return '<div class="kw-client">' + head + '<span class="err-tag" style="font-size:11px;font-weight:600;background:var(--red-bg);color:var(--red);padding:3px 10px;border-radius:100px">Erreur GSC</span></div><div class="kw-empty">' + escapeAttr(m.error) + '</div></div>';
+
+        const months = m.months;
+        const last = months.length - 1;
+        const ths = months.map((mo, i) => '<th>' + monthLabel(mo.key) + (mo.partial ? '*' : '') + '</th>').join('');
+        const trs = m.rows.map(r => {
+          const curr = r.data[last];
+          const prev = r.data[last - 1];
+          const year = months.length >= 13 ? r.data[last - 12] : null;
+          const dM = deltaPos(curr?.position, prev?.position);
+          const dY = deltaPos(curr?.position, year?.position);
+          return '<tr><td class="kw-kw" title="' + escapeAttr(r.keyword) + '">' + escapeAttr(r.keyword) + '</td>' +
+            r.data.map(kwCell).join('') +
+            '<td>' + (dM ? badge(dM) : '<span class="badge flat">n/a</span>') + '</td>' +
+            '<td>' + (dY ? badge(dY) : '<span class="badge flat">n/a</span>') + '</td></tr>';
+        }).join('');
+        return '<div class="kw-client">' + head + '<span class="meta">' + m.rows.length + ' mots clés</span></div>' +
+          '<div class="kw-scroll"><table class="kw-table"><thead><tr><th class="kw-kw">Mot clé</th>' + ths + '<th>Δ M-1</th><th>Δ N-1</th></tr></thead><tbody>' + trs + '</tbody></table></div></div>';
+      }).join('');
+
+      $('#content').innerHTML =
+        '<div style="display:flex;align-items:center;margin-bottom:14px"><h3 class="section-title" style="margin:0;flex:1">Suivi par client <span class="hint">position moyenne par mois · vert = top 3, jaune = top 10</span></h3>' + exportBtn + '</div>' +
+        note + blocks;
+
+      $('#export-kw')?.addEventListener('click', exportKeywords);
+    }
+    function exportKeywords() {
+      const allMonths = CLIENTS.find(c => c.data.monthly?.months)?.data.monthly.months ?? [];
+      const rows = [['Client', 'Mot clé', ...allMonths.map(mo => mo.key + (mo.partial ? '*' : ''))]];
+      CLIENTS.forEach(c => {
+        const m = c.data.monthly;
+        if (!m || m.error) return;
+        m.rows.forEach(r => rows.push([c.label, r.keyword, ...r.data.map(d => (d && d.impressions) ? d.position.toFixed(1) : '')]));
+      });
+      downloadCSV('suivi-mots-cles.csv', rows);
     }
 
     // ===== Detail client =====
@@ -1147,6 +1240,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
     function refreshCurrentView() {
       if (currentView === 'overview') renderOverview();
       else if (currentView === 'compare') renderCompare();
+      else if (currentView === 'keywords') renderKeywords();
       else renderDetail(currentView);
       renderNav();
     }
@@ -1170,6 +1264,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
       populateCountrySelect();
       const hash = decodeURIComponent(location.hash.slice(1));
       if (hash === 'compare') currentView = 'compare';
+      else if (hash === 'keywords') currentView = 'keywords';
       else if (hash && CLIENTS.find(s => s.domain === hash)) currentView = hash;
       renderNav();
       refreshCurrentView();
