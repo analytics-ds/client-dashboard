@@ -30,7 +30,8 @@ export const CLIENTS = [
     domain: 'celio.com',
     gscProperty: 'sc-domain:celio.com',
     account: 'pierre',
-    brandRegex: 'celio',
+    // typos (celii, celuo, célio) + Camaïeu (marque rachetée par Celio)
+    brandRegex: 'c[eé]li[oiu]|celuo|cama[iï]eu',
   },
   {
     label: "Techniques de l'ingénieur",
@@ -44,7 +45,7 @@ export const CLIENTS = [
     domain: 'strap-on-me.com',
     gscProperty: 'sc-domain:strap-on-me.com',
     account: 'upearly',
-    brandRegex: 'strap[\\s-]?on[\\s-]?me|straponme',
+    brandRegex: 'strap[\\s-]?on[\\s-]?me|straponme|strap[\\s-]?me[\\s-]?on',
   },
   {
     label: '1969 Store',
@@ -58,14 +59,15 @@ export const CLIENTS = [
     domain: 'faguo-store.com',
     gscProperty: 'sc-domain:faguo-store.com',
     account: 'upearly',
-    brandRegex: 'faguo',
+    // faguo + typos (fago, fagou, fuago)
+    brandRegex: 'f[au]+g[ou]+',
   },
   {
     label: 'AMV',
     domain: 'amv.fr',
     gscProperty: 'https://www.amv.fr/',
     account: 'datashake',
-    brandRegex: '\\bamv\\b|assurance\\s?moto\\s?verte',
+    brandRegex: '\\bamv\\b|\\bamw\\b|moto\\s?verte',
   },
   {
     label: 'COEO',
@@ -79,7 +81,7 @@ export const CLIENTS = [
     domain: 'quitoque.fr',
     gscProperty: 'https://www.quitoque.fr/',
     account: 'upearly',
-    brandRegex: 'quito\\??que|quitoc|kitoque',
+    brandRegex: 'quito\\??que|quitoc|kitoque|qui\\s?toque',
   },
 ];
 
