@@ -216,9 +216,9 @@ async function fetchWindow(searchconsole, gscProperty, days) {
   };
 }
 
-async function fetchDailySeries(searchconsole, gscProperty, days = 90) {
+async function fetchDailySeries(searchconsole, gscProperty, days = 90, dimensionFilterGroups) {
   const { current } = rangesForWindow(days);
-  const rows = await querySite(searchconsole, gscProperty, { ...current, dimensions: ['date'], rowLimit: days + 5 });
+  const rows = await querySite(searchconsole, gscProperty, { ...current, dimensions: ['date'], rowLimit: days + 5, dimensionFilterGroups });
   if (rows.error) return { error: rows.error };
   return rows.map(r => ({
     date: r.keys?.[0],
@@ -287,13 +287,19 @@ export async function fetchMonthlyKeywords(auth, gscProperty, keywords) {
  * Pull metrics pour 3 fenetres (7j, 28j, 90j) + serie quotidienne sur 90j.
  * Chaque fenetre contient les totaux courants, periode precedente ET annee precedente.
  */
-export async function fetchSiteWindows(auth, gscProperty) {
+export async function fetchSiteWindows(auth, gscProperty, brandRegex) {
   const searchconsole = google.searchconsole({ version: 'v1', auth });
-  const [w7, w28, w90, daily] = await Promise.all([
+  // Series quotidiennes marque / hors marque via filtre regex GSC, pour que les
+  // courbes suivent le bouton Tout/Hors marque/Marque (comme les KPI).
+  // Limite GSC : les requetes anonymisees sont exclues => marque + hors marque < total.
+  const mkFilter = (operator) => [{ filters: [{ dimension: 'query', operator, expression: '(?i)' + brandRegex }] }];
+  const [w7, w28, w90, daily, dailyBrand, dailyNonbrand] = await Promise.all([
     fetchWindow(searchconsole, gscProperty, 7),
     fetchWindow(searchconsole, gscProperty, 28),
     fetchWindow(searchconsole, gscProperty, 90),
     fetchDailySeries(searchconsole, gscProperty, 90),
+    brandRegex ? fetchDailySeries(searchconsole, gscProperty, 90, mkFilter('includingRegex')) : null,
+    brandRegex ? fetchDailySeries(searchconsole, gscProperty, 90, mkFilter('excludingRegex')) : null,
   ]);
-  return { '7': w7, '28': w28, '90': w90, daily };
+  return { '7': w7, '28': w28, '90': w90, daily, dailyBrand, dailyNonbrand };
 }

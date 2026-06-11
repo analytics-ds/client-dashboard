@@ -37,7 +37,7 @@ async function pullClient(client) {
   if (!auth) {
     return { client, data: { windows: errWindows(`Compte Google "${client.account}" non configuré (refresh token manquant)`) } };
   }
-  const gsc = await fetchSiteWindows(auth, client.gscProperty)
+  const gsc = await fetchSiteWindows(auth, client.gscProperty, client.brandRegex)
     .catch(err => errWindows(err.message));
 
   // Suivi mensuel des mots clés (après les fenêtres, pour lisser le débit GSC)

@@ -537,6 +537,14 @@ export function renderDashboard({ encrypted, generatedAt }) {
       return { ...w, current: z, previous: z, yearAgo: z };
     }
 
+    // Serie quotidienne selon le filtre marque (fallback: serie globale si absente)
+    function dailySeries(client) {
+      const w = client.data.windows;
+      if (currentBrand === 'marque' && Array.isArray(w?.dailyBrand)) return w.dailyBrand;
+      if (currentBrand === 'nonbrand' && Array.isArray(w?.dailyNonbrand)) return w.dailyNonbrand;
+      return Array.isArray(w?.daily) ? w.daily : null;
+    }
+
     // Fenetre effective selon brand/device/pays. Conserve pages/queriesByCountry.
     function effectiveWindow(client, period) {
       const w = getClientWindow(client, period);
@@ -788,7 +796,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
       CLIENTS.forEach(s => {
         const canvas = document.getElementById('spark-' + slug(s.domain));
         if (!canvas) return;
-        const daily = s.data.windows?.daily;
+        const daily = dailySeries(s);
         if (!Array.isArray(daily) || !daily.length) return;
         const series = daily.slice(-days);
         const data = series.map(d => d.clicks);
@@ -1034,7 +1042,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
       '</div>';
 
       const brandNote = currentBrand !== 'all'
-        ? '<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h0"/></svg>Mode <b>' + (currentBrand === 'marque' ? 'Marque' : 'Hors marque') + '</b> : KPI calculés à partir des requêtes (légère sous-estimation GSC).</div>'
+        ? '<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h0"/></svg>Mode <b>' + (currentBrand === 'marque' ? 'Marque' : 'Hors marque') + '</b> : KPI et courbes calculés à partir des requêtes (légère sous-estimation, GSC anonymise les requêtes rares).</div>'
         : '';
 
       const charts = '<div class="chart-grid">' +
@@ -1190,7 +1198,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
     function destroyCharts() { charts.forEach(c => { try { c.destroy(); } catch {} }); charts = []; }
     function renderDetailCharts(client) {
       destroyCharts();
-      const daily = client.data.windows?.daily;
+      const daily = dailySeries(client);
       if (!Array.isArray(daily)) return;
       const days = parseInt(currentPeriod, 10);
       const series = daily.slice(-days);
