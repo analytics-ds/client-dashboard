@@ -258,11 +258,9 @@ export function renderDashboard({ encrypted, generatedAt }) {
     .kw-table tr:hover td { background: var(--bg-warm); }
     .kw-table tr:hover td.kw-kw { background: var(--bg-warm); }
     .kw-table td.kw-kw { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
-    .kw-pos { font-weight: 600; }
-    .kw-pos.top3 { color: var(--green); background: var(--green-bg); }
-    .kw-pos.top10 { color: var(--accent-dark); background: rgba(194,182,66,0.14); }
-    .kw-pos.p20 { color: var(--text-secondary); }
-    .kw-pos.far { color: var(--text-muted); }
+    .kw-pos { font-weight: 600; color: var(--text-secondary); }
+    .kw-pos.up { color: var(--green); background: var(--green-bg); }
+    .kw-pos.down { color: var(--red); background: var(--red-bg); }
     .kw-pos.none { color: var(--text-muted); font-weight: 400; }
     .kw-empty { padding: 18px; font-size: 12px; color: var(--text-muted); }
 
@@ -909,11 +907,17 @@ export function renderDashboard({ encrypted, generatedAt }) {
       const lbl = new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('fr-FR', { month: 'short' });
       return lbl.replace('.', '') + ' ' + y.slice(2);
     }
-    function kwCell(d) {
+    // Couleur = évolution vs le mois précédent (vert: position gagnée, rouge: perdue)
+    function kwCell(d, prev) {
       if (!d || !d.impressions) return '<td class="kw-pos none">–</td>';
-      const p = d.position;
-      const cls = p <= 3 ? 'top3' : p <= 10 ? 'top10' : p <= 20 ? 'p20' : 'far';
-      return '<td class="kw-pos ' + cls + '" title="' + fmtNum(d.clicks) + ' clics · ' + fmtNum(d.impressions) + ' impressions">' + p.toFixed(1) + '</td>';
+      let cls = '';
+      if (prev && prev.impressions) {
+        const diff = d.position - prev.position;
+        cls = diff < -0.1 ? 'up' : diff > 0.1 ? 'down' : '';
+      } else if (prev === null) {
+        cls = 'up'; // entrée dans l'index ce mois-ci
+      }
+      return '<td class="kw-pos ' + cls + '" title="' + fmtNum(d.clicks) + ' clics · ' + fmtNum(d.impressions) + ' impressions">' + d.position.toFixed(1) + '</td>';
     }
     function renderKeywords() {
       $('#page-title').textContent = 'Mots clés suivis';
@@ -946,7 +950,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
           const dM = deltaPos(curr?.position, prev?.position);
           const dY = deltaPos(curr?.position, year?.position);
           return '<tr><td class="kw-kw" title="' + escapeAttr(r.keyword) + '">' + escapeAttr(r.keyword) + '</td>' +
-            r.data.map(kwCell).join('') +
+            r.data.map((d, i) => kwCell(d, i > 0 ? r.data[i - 1] : undefined)).join('') +
             '<td>' + (dM ? badge(dM) : '<span class="badge flat">n/a</span>') + '</td>' +
             '<td>' + (dY ? badge(dY) : '<span class="badge flat">n/a</span>') + '</td></tr>';
         }).join('');
@@ -955,7 +959,7 @@ export function renderDashboard({ encrypted, generatedAt }) {
       }).join('');
 
       $('#content').innerHTML =
-        '<div style="display:flex;align-items:center;margin-bottom:14px"><h3 class="section-title" style="margin:0;flex:1">Suivi par client <span class="hint">position moyenne par mois · vert = top 3, jaune = top 10</span></h3>' + exportBtn + '</div>' +
+        '<div style="display:flex;align-items:center;margin-bottom:14px"><h3 class="section-title" style="margin:0;flex:1">Suivi par client <span class="hint">position moyenne par mois · vert = mieux que le mois précédent, rouge = moins bien</span></h3>' + exportBtn + '</div>' +
         note + blocks;
 
       $('#export-kw')?.addEventListener('click', exportKeywords);
